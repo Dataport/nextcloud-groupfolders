@@ -31,7 +31,7 @@ class TeamSpaceProvider implements ITeamFolderProvider {
 
 	#[\Override]
 	public function getName(): string {
-		return $this->l10n->t('Team spaces');
+		return $this->l10n->t('Team folders');
 	}
 
 	#[\Override]
@@ -50,10 +50,32 @@ class TeamSpaceProvider implements ITeamFolderProvider {
 
 		$folder = $this->getTeamFolder($team->getId());
 		if ($folder === null) {
-			throw new \RuntimeException('Created team space could not be found');
+			throw new \RuntimeException('Created team folder could not be found');
 		}
 
 		return $folder;
+	}
+
+	/**
+	 * @return list<TeamFolder>
+	 */
+	public function getLinkableTeamFolders(string $teamId): array {
+		return $this->service->getLinkableGroupFoldersForCircle($teamId);
+	}
+
+	public function linkTeamFolder(string $teamId, int $folderId): TeamFolder {
+		$this->service->linkExistingTeamSpace($teamId, $folderId);
+
+		$folder = $this->getTeamFolder($teamId);
+		if ($folder === null) {
+			throw new \RuntimeException('Linked team folder could not be found');
+		}
+
+		return $folder;
+	}
+
+	public function updateTeamFolderQuota(string $teamId, int $quota): TeamFolder {
+		return $this->service->updateTeamSpaceQuota($teamId, $quota);
 	}
 
 	#[\Override]
@@ -77,13 +99,22 @@ class TeamSpaceProvider implements ITeamFolderProvider {
 	 * @return list<TeamResource>
 	 */
 	public function getSharedWith(string $teamId): array {
-		return array_map(fn (TeamFolder $folder): TeamResource => new TeamResource(
-			$this,
-			(string)$folder->getId(),
-			$folder->getMountPoint(),
-			$this->urlGenerator->getAbsoluteURL('/apps/files/?dir=/' . rawurlencode($folder->getMountPoint())),
-			iconSvg: $this->getIconSvg(),
-		), $this->service->getGroupFoldersForCircle($teamId));
+		$teamSpaceFolder = $this->service->getTeamSpaceForCircle($teamId);
+		$teamSpaceFolderId = $teamSpaceFolder !== null ? (string)$teamSpaceFolder->getId() : null;
+
+		return array_map(function (TeamFolder $folder) use ($teamId, $teamSpaceFolderId): TeamResource {
+			$url = $teamSpaceFolderId !== null && (string)$folder->getId() === $teamSpaceFolderId
+				? $this->urlGenerator->linkToRouteAbsolute('circles.page.indexpath', ['path' => 'team/' . $teamId])
+				: $this->urlGenerator->linkToRouteAbsolute('files.view.index', ['dir' => '/' . $folder->getMountPoint()]);
+
+			return new TeamResource(
+				$this,
+				(string)$folder->getId(),
+				$folder->getMountPoint(),
+				$url,
+				iconSvg: $this->getIconSvg(),
+			);
+		}, $this->service->getGroupFoldersForCircle($teamId));
 	}
 
 	#[\Override]

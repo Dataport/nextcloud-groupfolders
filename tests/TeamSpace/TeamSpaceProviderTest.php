@@ -37,6 +37,10 @@ class TeamSpaceProviderTest extends TestCase {
 
 	public function testGetSharedWithReturnsAllFoldersAssignedToTeam(): void {
 		$this->service->expects($this->once())
+			->method('getTeamSpaceForCircle')
+			->with('team-1')
+			->willReturn(new TeamFolder(42, 'Engineering'));
+		$this->service->expects($this->once())
 			->method('getGroupFoldersForCircle')
 			->with('team-1')
 			->willReturn([
@@ -44,18 +48,54 @@ class TeamSpaceProviderTest extends TestCase {
 				new TeamFolder(43, 'Shared projects'),
 			]);
 		$this->urlGenerator->expects($this->exactly(2))
-			->method('getAbsoluteURL')
-			->willReturnCallback(static fn (string $url): string => 'https://cloud.example' . $url);
+			->method('linkToRouteAbsolute')
+			->willReturnMap([
+				['circles.page.indexpath', ['path' => 'team/team-1'], 'https://cloud.example/index.php/apps/circles/teams/team/team-1'],
+				['files.view.index', ['dir' => '/Shared projects'], 'https://cloud.example/apps/files/?dir=/Shared%20projects'],
+			]);
 
 		$resources = $this->provider->getSharedWith('team-1');
 
 		$this->assertCount(2, $resources);
 		$this->assertSame('42', $resources[0]->getId());
 		$this->assertSame('Engineering', $resources[0]->getLabel());
-		$this->assertSame('https://cloud.example/apps/files/?dir=/Engineering', $resources[0]->getUrl());
+		$this->assertSame('https://cloud.example/index.php/apps/circles/teams/team/team-1', $resources[0]->getUrl());
 		$this->assertSame('43', $resources[1]->getId());
 		$this->assertSame('Shared projects', $resources[1]->getLabel());
 		$this->assertSame('https://cloud.example/apps/files/?dir=/Shared%20projects', $resources[1]->getUrl());
+	}
+
+	public function testGetLinkableTeamFoldersDelegatesToService(): void {
+		$folders = [new TeamFolder(42, 'Engineering')];
+		$this->service->expects($this->once())
+			->method('getLinkableGroupFoldersForCircle')
+			->with('team-1')
+			->willReturn($folders);
+
+		$this->assertSame($folders, $this->provider->getLinkableTeamFolders('team-1'));
+	}
+
+	public function testLinkTeamFolderLinksAndReturnsFolder(): void {
+		$folder = new TeamFolder(42, 'Engineering');
+		$this->service->expects($this->once())
+			->method('linkExistingTeamSpace')
+			->with('team-1', 42);
+		$this->service->expects($this->once())
+			->method('getTeamSpaceForCircle')
+			->with('team-1')
+			->willReturn($folder);
+
+		$this->assertSame($folder, $this->provider->linkTeamFolder('team-1', 42));
+	}
+
+	public function testUpdateTeamFolderQuotaDelegatesToService(): void {
+		$folder = new TeamFolder(42, 'Engineering');
+		$this->service->expects($this->once())
+			->method('updateTeamSpaceQuota')
+			->with('team-1', 1024)
+			->willReturn($folder);
+
+		$this->assertSame($folder, $this->provider->updateTeamFolderQuota('team-1', 1024));
 	}
 
 	public function testIsSharedWithTeamChecksAllFoldersAssignedToTeam(): void {
