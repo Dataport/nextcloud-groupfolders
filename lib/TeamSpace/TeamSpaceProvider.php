@@ -68,6 +68,11 @@ class TeamSpaceProvider implements ITeamFolderProvider {
 	}
 
 	#[\Override]
+	public function updateTeamFolderQuota(string $teamId, int $quota): TeamFolder {
+		return $this->service->updateTeamSpaceQuota($teamId, $quota);
+	}
+
+	#[\Override]
 	public function unlinkTeamFolder(string $teamId): ?TeamFolder {
 		$folder = $this->getTeamFolder($teamId);
 		if ($folder === null) {

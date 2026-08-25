@@ -234,7 +234,31 @@ class TeamSpaceService {
 
 		$this->createAppDirectory($folderId);
 
-		return new TeamFolder($folder->id, $folder->mountPoint);
+		return new TeamFolder($folder->id, $folder->mountPoint, $folder->quota);
+	}
+
+	/**
+	 * Update the storage quota of the team space belonging to the given team.
+	 *
+	 * @param string $circleId The circle single id.
+	 * @param int $quota Quota in bytes; zero means unlimited.
+	 * @return TeamFolder The updated folder.
+	 * @throws \RuntimeException if no team space is linked to the team.
+	 */
+	public function updateTeamSpaceQuota(string $circleId, int $quota): TeamFolder {
+		$folderId = $this->folderManager->getFolderIdByTeamCircleId($circleId);
+		if ($folderId === null) {
+			throw new \RuntimeException('No team space linked to this team');
+		}
+
+		$this->folderManager->setFolderQuota($folderId, $quota);
+
+		$folder = $this->folderManager->getFolder($folderId);
+		if ($folder === null) {
+			throw new \RuntimeException('Team space could not be found after updating quota');
+		}
+
+		return new TeamFolder($folder->id, $folder->mountPoint, $folder->quota);
 	}
 
 	/**
@@ -247,7 +271,7 @@ class TeamSpaceService {
 	 */
 	public function getGroupFoldersForCircle(string $circleId): array {
 		return array_map(
-			static fn (FolderDefinition $folder): TeamFolder => new TeamFolder($folder->id, $folder->mountPoint),
+			static fn (FolderDefinition $folder): TeamFolder => new TeamFolder($folder->id, $folder->mountPoint, $folder->quota),
 			$this->folderManager->getFoldersForCircle($circleId),
 		);
 	}
@@ -260,7 +284,7 @@ class TeamSpaceService {
 	 */
 	public function getLinkableTeamSpaces(string $circleId): array {
 		return array_map(
-			static fn (FolderDefinition $folder): TeamFolder => new TeamFolder($folder->id, $folder->mountPoint),
+			static fn (FolderDefinition $folder): TeamFolder => new TeamFolder($folder->id, $folder->mountPoint, $folder->quota),
 			array_values(array_filter(
 				$this->folderManager->getFoldersForCircle($circleId),
 				static fn (FolderDefinition $folder): bool => !$folder->isTeamSpace(),
@@ -281,7 +305,7 @@ class TeamSpaceService {
 			$this->folderManager->setTeamCircleId($folderId, $circleId);
 			$this->createAppDirectory($folderId);
 
-			return new TeamFolder($folder->id, $folder->mountPoint);
+			return new TeamFolder($folder->id, $folder->mountPoint, $folder->quota);
 		}
 
 		throw new \InvalidArgumentException('Folder is not linkable to this team');
